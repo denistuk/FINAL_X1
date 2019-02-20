@@ -6,27 +6,56 @@ pipeline {
 
         DOCKER_HUB_USERNAME = "BAR"
         DOCKER_HUB_PASSWORD = ""
-        DOCKERHUB_REPO_NAME = ""
+        DOCKERHUB_REPO_NAME = "denistuk/FINAL_X1"
 
     }
     stages {
-        stage('build final artifact') {
-            git url: 'https://github.com/zivkashtan/course.git'
-            sh 'mvn package'
-
-            writeFile file: "Dockerfile", text: """
-                FROM tomcat:8.0.20-jre8
-                COPY ./web/target/*.war /usr/local/tomcat/webapps/
-            """
-            sh "docker build -t snscaimito/ledger-service:${env.BUILD_ID} ."
-
-            sh """
+        stage('CODE CLONE') {
+            steps {
+                git 'https://github.com/denistuk/FINAL_X1.git'
+            }
+        }
+        stage('BUILD') {
+            steps {
+                sh 'mvn package'
+                sh 'docker build -t FINAL_X1:${env.BUILD_ID} .'
+                sh """
               docker login -u ${DOCKER_HUB_USERNAME} -p ${DOCKER_HUB_PASSWORD}
-              docker tag ${DOCKERHUB_REPO_NAME}:latest
+              docker tag FINAL_X1:${env.BUILD_ID} ${DOCKERHUB_REPO_NAME}:${env.BUILD_ID}
+              docker push ${DOCKERHUB_REPO_NAME}:${env.BUILD_ID}
+            """
+            }
+        }
+        stage('TEST') {
+            steps {
+                sh 'echo "blabla"'
+            }
+        }
+        stage('RELEASE') {
+            steps {
+                sh """
+              docker login -u ${DOCKER_HUB_USERNAME} -p ${DOCKER_HUB_PASSWORD}
+              docker tag ${DOCKERHUB_REPO_NAME}:${env.BUILD_ID} ${DOCKERHUB_REPO_NAME}:latest
               docker push ${DOCKERHUB_REPO_NAME}:latest
             """
-            sh "docker push ${DOCKERHUB_REPO_NAME}:latest"
+            }
         }
+        stage('Deploy(legacy)') {
+            steps {
+                sh """
+                ansible-playbook deploy/war-deploy-playbook.yaml -i deploy/hosts
+            """
+            }
+        }
+        stage('DEPLOY (MODERN)') {
+            steps {
+                sh """
+                kubectl apply -f deploy/k8s-deployment.yaml
+            """
+            }
+        }
+        
+        
     }
     post {
         success {
